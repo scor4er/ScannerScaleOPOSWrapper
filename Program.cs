@@ -1,5 +1,5 @@
-﻿using System;
-using System.Diagnostics.Eventing.Reader;
+using System;
+using System.Globalization;
 using System.Threading;
 using OPOSCONSTANTSLib;
 using OposScale_CCO;
@@ -69,7 +69,7 @@ namespace Scanner_Scale_OPOS_Wrapper
         {
             IntPtr handle = GetConsoleWindow();
 
-            if (ini.Debug == 1)
+            if (ini.Mode == RuntimeMode.EMULATOR || ini.Debug == 1)
             {
                 ShowWindow(handle, 5); // 5 = SW_SHOW
             }
@@ -129,10 +129,93 @@ namespace Scanner_Scale_OPOS_Wrapper
         private static void RunEmulator(INI ini, ManualResetEvent exitEvent)
         {
             Logger.Log($"Runtime mode: {ini.Mode}", MessageType.normal);
-            Logger.Log("Emulator mode is not implemented yet.", MessageType.misc);
+            NamedPipesServer.StartNamedPipeServer(ini.PipeName);
+            Logger.Log("Named pipe server started in emulator mode.", MessageType.normal);
+            Logger.Log($"Named pipe server: {ini.PipeName}", MessageType.normal);
+            PrintEmulatorHelp();
             Logger.Log("Press Ctrl+C to exit", MessageType.normal);
 
-            exitEvent.WaitOne();
+            while (!exitEvent.WaitOne(0))
+            {
+                string command = Console.ReadLine();
+                if (command == null)
+                {
+                    exitEvent.Set();
+                    break;
+                }
+
+                HandleEmulatorCommand(command);
+            }
+        }
+
+        private static void HandleEmulatorCommand(string commandLine)
+        {
+            string command = commandLine?.Trim() ?? string.Empty;
+            if (string.IsNullOrEmpty(command))
+            {
+                return;
+            }
+
+            if (command.Equals("help", StringComparison.OrdinalIgnoreCase))
+            {
+                PrintEmulatorHelp();
+                return;
+            }
+
+            if (command.StartsWith("scan ", StringComparison.OrdinalIgnoreCase))
+            {
+                string barcode = command.Substring(5).Trim();
+                if (string.IsNullOrEmpty(barcode))
+                {
+                    Logger.Log("Usage: scan <barcode>", MessageType.misc);
+                    return;
+                }
+
+                Logger.Log($"\n[SCAN] {barcode}", MessageType.scanner_error);
+                NamedPipesServer.SendDataToClient($"SCAN:{barcode}");
+                return;
+            }
+
+            if (command.StartsWith("weight ", StringComparison.OrdinalIgnoreCase))
+            {
+                string rawWeight = command.Substring(7).Trim();
+                if (!TryParseWeight(rawWeight, out double weightInPounds))
+                {
+                    Logger.Log("Usage: weight <lb>", MessageType.misc);
+                    return;
+                }
+
+                string formattedWeight = WeightFormat(weightInPounds);
+                Logger.Log(formattedWeight, MessageType.consoleOnly);
+                NamedPipesServer.SendDataToClient($"WEIGHT:{formattedWeight}");
+                return;
+            }
+
+            Logger.Log("Unknown emulator command. Type 'help' for usage.", MessageType.misc);
+        }
+
+        private static void PrintEmulatorHelp()
+        {
+            Logger.Log("Available emulator commands:", MessageType.normal);
+            Logger.Log("  scan <barcode>", MessageType.normal);
+            Logger.Log("  weight <lb>", MessageType.normal);
+            Logger.Log("  help", MessageType.normal);
+        }
+
+        private static bool TryParseWeight(string rawWeight, out double weightInPounds)
+        {
+            return double.TryParse(
+                    rawWeight,
+                    NumberStyles.Float | NumberStyles.AllowLeadingSign,
+                    CultureInfo.InvariantCulture,
+                    out weightInPounds
+                )
+                || double.TryParse(
+                    rawWeight,
+                    NumberStyles.Float | NumberStyles.AllowLeadingSign,
+                    CultureInfo.CurrentCulture,
+                    out weightInPounds
+                );
         }
 
         static bool InitializeScanner(INI ini)
@@ -278,20 +361,29 @@ namespace Scanner_Scale_OPOS_Wrapper
         //Helper function to format weight
         private static string WeightFormat(int weight)
         {
-            string weightStr = string.Empty;
-
             string units = UnitAbbreviation(scale.WeightUnits);
             if (units == string.Empty)
             {
-                weightStr = string.Format("Unknown weight unit");
-            }
-            else
-            {
-                double dWeight = 0.001 * (double)weight;
-                weightStr = string.Format("{0:0.000} {1}", dWeight, units);
+                return "Unknown weight unit";
             }
 
-            return weightStr;
+            double dWeight = 0.001 * (double)weight;
+            return WeightFormat(dWeight, units);
+        }
+
+        private static string WeightFormat(double weightInPounds)
+        {
+            return WeightFormat(weightInPounds, "lb.");
+        }
+
+        private static string WeightFormat(double weight, string units)
+        {
+            return string.Format(
+                CultureInfo.InvariantCulture,
+                "{0:0.000} {1}",
+                weight,
+                units
+            );
         }
 
         //Helper function to get proper UOM from scale
