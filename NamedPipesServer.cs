@@ -120,7 +120,10 @@ namespace Scanner_Scale_OPOS_Wrapper
                         listeningPipeServer = currentPipeServer;
                     }
 
-                    Logger.Log("Waiting for pipe client...", MessageType.normal);
+                    if (!IsClientConnected)
+                    {
+                        Logger.Log("Waiting for pipe client...", MessageType.normal);
+                    }
 
                     IAsyncResult waitHandle = currentPipeServer.BeginWaitForConnection(null, null);
                     while (isServerRunning && !waitHandle.AsyncWaitHandle.WaitOne(250))
@@ -134,7 +137,7 @@ namespace Scanner_Scale_OPOS_Wrapper
                     }
 
                     currentPipeServer.EndWaitForConnection(waitHandle);
-                    Logger.Log("Pipe client connected.", MessageType.normal);
+                    Logger.Log("Pipe client connected. Ready to send data.", MessageType.normal);
 
                     // Safely update the shared pipe objects under a lock
                     lock (pipeLock)
