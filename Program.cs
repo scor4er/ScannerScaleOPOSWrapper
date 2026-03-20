@@ -54,6 +54,8 @@ namespace Scanner_Scale_OPOS_Wrapper
 
             try
             {
+                Logger.Log($"Runtime mode: {ini.Mode}", MessageType.normal);
+
                 // Initialize Scanner
                 if (InitializeScanner(ini))
                 {
@@ -76,18 +78,20 @@ namespace Scanner_Scale_OPOS_Wrapper
 
                 if (scanner?.Claimed == true || scale?.Claimed == true)
                 {
-                    NamedPipesServer.StartNamedPipeServer(DefaultPipeName);
+                    NamedPipesServer.StartNamedPipeServer(ini.PipeName);
                     if (ini.ScaleEnabled == 1)
                     {
                         Logger.Log(
                             "\nDevice(s) ready. Scanner: scan barcodes | Scale: live weight monitoring",
                             MessageType.normal
                         );
+                        Logger.Log($"Named pipe server: {ini.PipeName}", MessageType.normal);
                         Logger.Log("Press Ctrl+C to exit", MessageType.normal);
                     }
                     else
                     {
                         Logger.Log("\nDevice(s) ready. Scanner: scan barcodes", MessageType.normal);
+                        Logger.Log($"Named pipe server: {ini.PipeName}", MessageType.normal);
                         Logger.Log("Press Ctrl+C to exit", MessageType.normal);
                     }
                     // Wait for exit event

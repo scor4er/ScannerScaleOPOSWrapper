@@ -13,6 +13,8 @@ namespace Scanner_Scale_OPOS_Wrapper
         public string ScannerLogicalName { get; private set; }
         public string ScaleLogicalName { get; private set; }
         public int ScaleEnabled { get; private set; }
+        public Constants.RuntimeMode Mode { get; private set; }
+        public string PipeName { get; private set; }
 
         public INI()
         {
@@ -31,6 +33,21 @@ namespace Scanner_Scale_OPOS_Wrapper
 
                 ScannerLogicalName = section["SCANNER_NAME"] ?? "DefaultScanner";
                 ScaleLogicalName = section["SCALE_NAME"] ?? "DefaultScale";
+                PipeName = string.IsNullOrWhiteSpace(section["PIPE_NAME"])
+                    ? Constants.DefaultPipeName
+                    : section["PIPE_NAME"].Trim();
+
+                if (
+                    !Enum.TryParse(
+                        section["MODE"],
+                        ignoreCase: true,
+                        result: out Constants.RuntimeMode mode
+                    )
+                )
+                {
+                    mode = Constants.DefaultRuntimeMode;
+                }
+                Mode = mode;
 
                 // Use TryParse for safer conversion
                 ScaleEnabled = int.TryParse(section["SCALE_ENABLED"], out int scaleEnabled)
@@ -56,6 +73,8 @@ namespace Scanner_Scale_OPOS_Wrapper
             Logger.Log($"INI Scale Logical Name: {ScaleLogicalName}", Constants.MessageType.normal);
             Logger.Log($"INI Scale Enabled: {ScaleEnabled}", Constants.MessageType.normal);
             Logger.Log($"INI Debug Level: {Debug}", Constants.MessageType.normal);
+            Logger.Log($"INI Runtime Mode: {Mode}", Constants.MessageType.normal);
+            Logger.Log($"INI Pipe Name: {PipeName}", Constants.MessageType.normal);
         }
 
         private void SetDefaults()
@@ -64,6 +83,8 @@ namespace Scanner_Scale_OPOS_Wrapper
             ScaleLogicalName = "ZEBRA_SCALE";
             ScaleEnabled = 1;
             Debug = 1;
+            Mode = Constants.DefaultRuntimeMode;
+            PipeName = Constants.DefaultPipeName;
             Logger.Log("Using default configuration values", Constants.MessageType.normal);
             LogLoadedValues();
         }
