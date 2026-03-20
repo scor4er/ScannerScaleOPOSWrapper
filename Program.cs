@@ -1,5 +1,6 @@
 using System;
 using System.Globalization;
+using System.Text;
 using System.Threading;
 using OPOSCONSTANTSLib;
 using OposScale_CCO;
@@ -27,13 +28,18 @@ namespace Scanner_Scale_OPOS_Wrapper
             // Read INI configuration
             INI ini = new INI();
             Logger.debug = ini.Debug;
+            Logger.forceConsoleOutput = ini.Mode == RuntimeMode.EMULATOR;
             ConfigureConsoleVisibility(ini);
 
             var exitEvent = new ManualResetEvent(false);
             Console.CancelKeyPress += (sender, eventArgs) =>
             {
                 eventArgs.Cancel = true;
-                exitEvent.Set();
+                if (!exitEvent.WaitOne(0))
+                {
+                    Logger.Log("Shutdown requested. Stopping wrapper...", MessageType.normal);
+                    exitEvent.Set();
+                }
             };
 
             try
@@ -61,7 +67,9 @@ namespace Scanner_Scale_OPOS_Wrapper
             }
             finally
             {
+                NamedPipesServer.StopNamedPipeServer();
                 CleanupDevices();
+                Logger.Log("Wrapper stopped.", MessageType.normal);
             }
         }
 
@@ -128,27 +136,32 @@ namespace Scanner_Scale_OPOS_Wrapper
 
         private static void RunEmulator(INI ini, ManualResetEvent exitEvent)
         {
+            Console.Title = "Scanner Scale OPOS Wrapper - Emulator";
             Logger.Log($"Runtime mode: {ini.Mode}", MessageType.normal);
             NamedPipesServer.StartNamedPipeServer(ini.PipeName);
-            Logger.Log("Named pipe server started in emulator mode.", MessageType.normal);
-            Logger.Log($"Named pipe server: {ini.PipeName}", MessageType.normal);
-            PrintEmulatorHelp();
-            Logger.Log("Press Ctrl+C to exit", MessageType.normal);
+            PrintEmulatorWelcome(ini.PipeName);
 
             while (!exitEvent.WaitOne(0))
             {
-                string command = Console.ReadLine();
+                Console.Write("emulator> ");
+                string command = ReadInteractiveCommand(exitEvent);
                 if (command == null)
                 {
-                    exitEvent.Set();
+                    Console.WriteLine();
                     break;
                 }
 
-                HandleEmulatorCommand(command);
+                HandleEmulatorCommand(command, exitEvent, ini.PipeName);
             }
+
+            Logger.Log("Emulator mode stopped.", MessageType.normal);
         }
 
-        private static void HandleEmulatorCommand(string commandLine)
+        private static void HandleEmulatorCommand(
+            string commandLine,
+            ManualResetEvent exitEvent,
+            string pipeName
+        )
         {
             string command = commandLine?.Trim() ?? string.Empty;
             if (string.IsNullOrEmpty(command))
@@ -159,6 +172,38 @@ namespace Scanner_Scale_OPOS_Wrapper
             if (command.Equals("help", StringComparison.OrdinalIgnoreCase))
             {
                 PrintEmulatorHelp();
+                return;
+            }
+
+            if (
+                command.Equals("exit", StringComparison.OrdinalIgnoreCase)
+                || command.Equals("quit", StringComparison.OrdinalIgnoreCase)
+            )
+            {
+                Logger.Log("Exit requested from emulator console.", MessageType.normal);
+                exitEvent.Set();
+                return;
+            }
+
+            if (
+                command.Equals("status", StringComparison.OrdinalIgnoreCase)
+                || command.Equals("pipe", StringComparison.OrdinalIgnoreCase)
+            )
+            {
+                Logger.Log(
+                    $"Pipe client connected: {(NamedPipesServer.IsClientConnected ? "yes" : "no")}",
+                    MessageType.normal
+                );
+                return;
+            }
+
+            if (
+                command.Equals("clear", StringComparison.OrdinalIgnoreCase)
+                || command.Equals("cls", StringComparison.OrdinalIgnoreCase)
+            )
+            {
+                Console.Clear();
+                PrintEmulatorWelcome(pipeName);
                 return;
             }
 
@@ -194,12 +239,84 @@ namespace Scanner_Scale_OPOS_Wrapper
             Logger.Log("Unknown emulator command. Type 'help' for usage.", MessageType.misc);
         }
 
+        private static string ReadInteractiveCommand(WaitHandle exitEvent)
+        {
+            if (Console.IsInputRedirected)
+            {
+                return Console.ReadLine();
+            }
+
+            StringBuilder buffer = new StringBuilder();
+
+            while (!exitEvent.WaitOne(50))
+            {
+                while (Console.KeyAvailable)
+                {
+                    ConsoleKeyInfo keyInfo = Console.ReadKey(intercept: true);
+
+                    if (keyInfo.Key == ConsoleKey.Enter)
+                    {
+                        Console.WriteLine();
+                        return buffer.ToString();
+                    }
+
+                    if (keyInfo.Key == ConsoleKey.Backspace)
+                    {
+                        if (buffer.Length > 0)
+                        {
+                            buffer.Length--;
+                            Console.Write("\b \b");
+                        }
+
+                        continue;
+                    }
+
+                    if (keyInfo.Key == ConsoleKey.Escape)
+                    {
+                        while (buffer.Length > 0)
+                        {
+                            buffer.Length--;
+                            Console.Write("\b \b");
+                        }
+
+                        continue;
+                    }
+
+                    if (!char.IsControl(keyInfo.KeyChar))
+                    {
+                        buffer.Append(keyInfo.KeyChar);
+                        Console.Write(keyInfo.KeyChar);
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        private static void PrintEmulatorWelcome(string pipeName)
+        {
+            Logger.Log(string.Empty, MessageType.consoleOnly);
+            Logger.Log("Scanner Scale OPOS Wrapper Emulator", MessageType.normal);
+            if (!string.IsNullOrWhiteSpace(pipeName))
+            {
+                Logger.Log($"Named pipe server: {pipeName}", MessageType.normal);
+            }
+
+            Logger.Log("Interactive commands are ready.", MessageType.normal);
+            PrintEmulatorHelp();
+            Logger.Log("Press Ctrl+C or type exit to stop", MessageType.normal);
+            Logger.Log(string.Empty, MessageType.consoleOnly);
+        }
+
         private static void PrintEmulatorHelp()
         {
             Logger.Log("Available emulator commands:", MessageType.normal);
             Logger.Log("  scan <barcode>", MessageType.normal);
             Logger.Log("  weight <lb>", MessageType.normal);
+            Logger.Log("  status", MessageType.normal);
+            Logger.Log("  clear", MessageType.normal);
             Logger.Log("  help", MessageType.normal);
+            Logger.Log("  exit", MessageType.normal);
         }
 
         private static bool TryParseWeight(string rawWeight, out double weightInPounds)
@@ -327,9 +444,7 @@ namespace Scanner_Scale_OPOS_Wrapper
             if (value == (int)OPOSScaleConstants.SCAL_SUE_STABLE_WEIGHT)
             {
                 Logger.Log(WeightFormat(scale.ScaleLiveWeight), MessageType.consoleOnly);
-                NamedPipesServer.pipeWriter?.WriteLine(
-                    $"WEIGHT:{WeightFormat(scale.ScaleLiveWeight)}"
-                );
+                NamedPipesServer.SendDataToClient($"WEIGHT:{WeightFormat(scale.ScaleLiveWeight)}");
             }
             else if (value == (int)OPOSScaleConstants.SCAL_SUE_WEIGHT_UNSTABLE)
             {

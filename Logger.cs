@@ -13,12 +13,14 @@ namespace Scanner_Scale_OPOS_Wrapper
         //This is a thread safety object
         private static readonly object _lockObject = new object();
         public static int debug;
+        public static bool forceConsoleOutput;
 
         public static void Log(string message, MessageType messageType)
         {
             lock (_lockObject)
             {
-                
+                bool writeToConsole = debug == 1 || forceConsoleOutput;
+
                 string dateTime = DateTime.Now.ToString();
                 string dateOnly = DateTime.Now.ToString("yyyy-MM-dd");
                 string path = $".\\Logs\\log_{dateOnly}.txt";
@@ -55,7 +57,7 @@ namespace Scanner_Scale_OPOS_Wrapper
                 {
                     case MessageType.normal:
                         File.AppendAllLines(path, new[] { $"{dateTime} - {message}" });
-                        if (debug == 1)
+                        if (writeToConsole)
                             Console.WriteLine(message);
                         break;
 
@@ -64,7 +66,7 @@ namespace Scanner_Scale_OPOS_Wrapper
                             path,
                             new[] { $"{dateTime} - SCALE ERROR - {message}" }
                         );
-                        if (debug == 1)
+                        if (writeToConsole)
                             Console.WriteLine(message);
                         break;
 
@@ -73,7 +75,7 @@ namespace Scanner_Scale_OPOS_Wrapper
                             path,
                             new[] { $"{dateTime} - SCANNER ERROR - {message}" }
                         );
-                        if (debug == 1)
+                        if (writeToConsole)
                             Console.WriteLine(message);
                         break;
 
@@ -82,7 +84,7 @@ namespace Scanner_Scale_OPOS_Wrapper
                             path,
                             new[] { $"{dateTime} - INI READ ERROR - {message}" }
                         );
-                        if (debug == 1)
+                        if (writeToConsole)
                             Console.WriteLine(message);
                         break;
                     case MessageType.namedPipes_error:
@@ -90,12 +92,12 @@ namespace Scanner_Scale_OPOS_Wrapper
                             path,
                             new[] { $"{dateTime} - NAMED PIPES ERROR - {message}" }
                         );
-                        if (debug == 1)
+                        if (writeToConsole)
                             Console.WriteLine(message);
                         break;
 
                     case MessageType.consoleOnly:
-                        if (debug == 1)
+                        if (writeToConsole)
                             Console.WriteLine(message);
                         break;
 
@@ -104,7 +106,7 @@ namespace Scanner_Scale_OPOS_Wrapper
                             path,
                             new[] { $"{dateTime} - MISC MSG/ERROR - {message}" }
                         );
-                        if (debug == 1)
+                        if (writeToConsole)
                             Console.WriteLine(message);
                         break;
                 }
