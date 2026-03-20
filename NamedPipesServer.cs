@@ -14,7 +14,7 @@ namespace Scanner_Scale_OPOS_Wrapper
         private static readonly object pipeLock = new object();
         private static bool isServerRunning = false;
 
-        internal static void StartNamedPipeServer()
+        internal static void StartNamedPipeServer(string pipeName)
         {
             if (isServerRunning)
             {
@@ -23,10 +23,10 @@ namespace Scanner_Scale_OPOS_Wrapper
             }
 
             // Start the server in a background task
-            Task.Run(() => ListenForConnections());
+            Task.Run(() => ListenForConnections(pipeName));
         }
 
-        private static void ListenForConnections()
+        private static void ListenForConnections(string pipeName)
         {
             isServerRunning = true;
             while (true)
@@ -36,7 +36,7 @@ namespace Scanner_Scale_OPOS_Wrapper
                 try
                 {
                     currentPipeServer = new NamedPipeServerStream(
-                        "ScannerScaleOPOSPipe",
+                        pipeName,
                         PipeDirection.Out,
                         NamedPipeServerStream.MaxAllowedServerInstances,
                         PipeTransmissionMode.Message,

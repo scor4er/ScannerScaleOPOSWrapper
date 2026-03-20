@@ -76,7 +76,7 @@ namespace Scanner_Scale_OPOS_Wrapper
 
                 if (scanner?.Claimed == true || scale?.Claimed == true)
                 {
-                    NamedPipesServer.StartNamedPipeServer();
+                    NamedPipesServer.StartNamedPipeServer(DefaultPipeName);
                     if (ini.ScaleEnabled == 1)
                     {
                         Logger.Log(

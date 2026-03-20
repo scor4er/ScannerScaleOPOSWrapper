@@ -8,6 +8,8 @@ namespace Scanner_Scale_OPOS_Wrapper
 {
     internal class Constants
     {
+        internal const string DefaultPipeName = "ScannerScaleOPOSPipe";
+
         public enum MessageType
         {
             normal,
