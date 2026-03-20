@@ -224,13 +224,13 @@ namespace Scanner_Scale_OPOS_Wrapper
             if (command.StartsWith("weight ", StringComparison.OrdinalIgnoreCase))
             {
                 string rawWeight = command.Substring(7).Trim();
-                if (!TryParseWeight(rawWeight, out double weightInPounds))
+                if (!TryParseWeight(rawWeight, out double weightValue))
                 {
-                    Logger.Log("Usage: weight <lb>", MessageType.misc);
+                    Logger.Log("Usage: weight <value>", MessageType.misc);
                     return;
                 }
 
-                string formattedWeight = WeightFormat(weightInPounds);
+                string formattedWeight = WeightFormat(weightValue);
                 Logger.Log(formattedWeight, MessageType.consoleOnly);
                 NamedPipesServer.SendDataToClient($"WEIGHT:{formattedWeight}");
                 return;
@@ -312,26 +312,26 @@ namespace Scanner_Scale_OPOS_Wrapper
         {
             Logger.Log("Available emulator commands:", MessageType.normal);
             Logger.Log("  scan <barcode>", MessageType.normal);
-            Logger.Log("  weight <lb>", MessageType.normal);
+            Logger.Log("  weight <value>", MessageType.normal);
             Logger.Log("  status", MessageType.normal);
             Logger.Log("  clear", MessageType.normal);
             Logger.Log("  help", MessageType.normal);
             Logger.Log("  exit", MessageType.normal);
         }
 
-        private static bool TryParseWeight(string rawWeight, out double weightInPounds)
+        private static bool TryParseWeight(string rawWeight, out double weightValue)
         {
             return double.TryParse(
                     rawWeight,
                     NumberStyles.Float | NumberStyles.AllowLeadingSign,
                     CultureInfo.InvariantCulture,
-                    out weightInPounds
+                    out weightValue
                 )
                 || double.TryParse(
                     rawWeight,
                     NumberStyles.Float | NumberStyles.AllowLeadingSign,
                     CultureInfo.CurrentCulture,
-                    out weightInPounds
+                    out weightValue
                 );
         }
 
@@ -476,53 +476,17 @@ namespace Scanner_Scale_OPOS_Wrapper
         //Helper function to format weight
         private static string WeightFormat(int weight)
         {
-            string units = UnitAbbreviation(scale.WeightUnits);
-            if (units == string.Empty)
-            {
-                return "Unknown weight unit";
-            }
-
             double dWeight = 0.001 * (double)weight;
-            return WeightFormat(dWeight, units);
+            return WeightFormat(dWeight);
         }
 
-        private static string WeightFormat(double weightInPounds)
-        {
-            return WeightFormat(weightInPounds, "lb.");
-        }
-
-        private static string WeightFormat(double weight, string units)
+        private static string WeightFormat(double weight)
         {
             return string.Format(
                 CultureInfo.InvariantCulture,
-                "{0:0.000} {1}",
-                weight,
-                units
+                "{0:0.000}",
+                weight
             );
-        }
-
-        //Helper function to get proper UOM from scale
-        private static string UnitAbbreviation(int units)
-        {
-            string unitStr = string.Empty;
-
-            switch ((OPOSScaleConstants)units)
-            {
-                case OPOSScaleConstants.SCAL_WU_GRAM:
-                    unitStr = "gr.";
-                    break;
-                case OPOSScaleConstants.SCAL_WU_KILOGRAM:
-                    unitStr = "kg.";
-                    break;
-                case OPOSScaleConstants.SCAL_WU_OUNCE:
-                    unitStr = "oz.";
-                    break;
-                case OPOSScaleConstants.SCAL_WU_POUND:
-                    unitStr = "lb.";
-                    break;
-            }
-
-            return unitStr;
         }
 
         static void CleanupDevices()

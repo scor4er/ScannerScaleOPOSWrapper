@@ -59,15 +59,14 @@ WEIGHT:<formatted weight>
 Examples:
 
 ```text
-WEIGHT:1.250 lb.
-WEIGHT:0.000 lb.
-WEIGHT:0.500 kg.
+WEIGHT:1.250
+WEIGHT:0.000
+WEIGHT:0.500
 ```
 
 Notes:
 
-- In `EMULATOR`, `weight <value>` always emits pounds formatted as `0.000 lb.`.
-- In `OPOS`, weight units come from the scale and may be `gr.`, `kg.`, `oz.`, or `lb.`.
+- In both `EMULATOR` and `OPOS`, weight payloads are emitted as numeric values only.
 - Unstable, overweight, not-ready, and other scale errors are logged to the console/log file, but they are not sent through the named pipe.
 - If no client is connected, the wrapper logs `Pipe is not connected. Message not sent.` and drops the event.
 
@@ -104,7 +103,7 @@ exit
 Expected results:
 
 - `scan 123456789` emits `SCAN:123456789`.
-- `weight 1.250` emits `WEIGHT:1.250 lb.`.
+- `weight 1.250` emits `WEIGHT:1.250`.
 - `status` reports whether a pipe client is currently connected.
 - `exit` or `Ctrl+C` stops the wrapper cleanly.
 
@@ -112,7 +111,7 @@ Expected results:
 
 ```text
 scan <barcode>
-weight <lb>
+weight <value>
 status
 clear
 help
