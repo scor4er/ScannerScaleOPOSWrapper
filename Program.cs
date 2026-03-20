@@ -11,7 +11,6 @@ namespace Scanner_Scale_OPOS_Wrapper
 {
     class Program
     {
-
         [DllImport("kernel32.dll")]
         static extern IntPtr GetConsoleWindow();
 
@@ -25,25 +24,10 @@ namespace Scanner_Scale_OPOS_Wrapper
 
         static void Main(string[] args)
         {
-
             // Read INI configuration
             INI ini = new INI();
             Logger.debug = ini.Debug;
-
-
-            // Get the handle for the current console window
-            IntPtr handle = GetConsoleWindow();
-
-            if(ini.Debug == 1)
-            {
-                // Show the console window
-                ShowWindow(handle, 5); // 5 = SW_SHOW
-            }
-            else
-            {
-                // Hide the console window
-                ShowWindow(handle, SW_HIDE);
-            }
+            ConfigureConsoleVisibility(ini);
 
             var exitEvent = new ManualResetEvent(false);
             Console.CancelKeyPress += (sender, eventArgs) =>
@@ -54,51 +38,21 @@ namespace Scanner_Scale_OPOS_Wrapper
 
             try
             {
-                Logger.Log($"Runtime mode: {ini.Mode}", MessageType.normal);
-
-                // Initialize Scanner
-                if (InitializeScanner(ini))
+                switch (ini.Mode)
                 {
-                    Logger.Log("Scanner initialized successfully", MessageType.normal);
-                }
-                else
-                {
-                    Logger.Log("Scanner initialization failed", MessageType.scanner_error);
-                }
-
-                // Initialize Scale
-                if (ini.ScaleEnabled == 1 && InitializeScale(ini))
-                {
-                    Logger.Log("Scale initialized successfully", MessageType.normal);
-                }
-                else
-                {
-                    Logger.Log("Scale initialization failed", MessageType.scale_error);
-                }
-
-                if (scanner?.Claimed == true || scale?.Claimed == true)
-                {
-                    NamedPipesServer.StartNamedPipeServer(ini.PipeName);
-                    if (ini.ScaleEnabled == 1)
-                    {
+                    case RuntimeMode.OPOS:
+                        RunOpos(ini, exitEvent);
+                        break;
+                    case RuntimeMode.EMULATOR:
+                        RunEmulator(ini, exitEvent);
+                        break;
+                    default:
                         Logger.Log(
-                            "\nDevice(s) ready. Scanner: scan barcodes | Scale: live weight monitoring",
-                            MessageType.normal
+                            $"Unsupported runtime mode '{ini.Mode}'. Falling back to OPOS.",
+                            MessageType.misc
                         );
-                        Logger.Log($"Named pipe server: {ini.PipeName}", MessageType.normal);
-                        Logger.Log("Press Ctrl+C to exit", MessageType.normal);
-                    }
-                    else
-                    {
-                        Logger.Log("\nDevice(s) ready. Scanner: scan barcodes", MessageType.normal);
-                        Logger.Log($"Named pipe server: {ini.PipeName}", MessageType.normal);
-                        Logger.Log("Press Ctrl+C to exit", MessageType.normal);
-                    }
-                    // Wait for exit event
-                    exitEvent.WaitOne();
-
-                    // Cleanup
-                    CleanupDevices();
+                        RunOpos(ini, exitEvent);
+                        break;
                 }
             }
             catch (Exception ex)
@@ -109,6 +63,76 @@ namespace Scanner_Scale_OPOS_Wrapper
             {
                 CleanupDevices();
             }
+        }
+
+        private static void ConfigureConsoleVisibility(INI ini)
+        {
+            IntPtr handle = GetConsoleWindow();
+
+            if (ini.Debug == 1)
+            {
+                ShowWindow(handle, 5); // 5 = SW_SHOW
+            }
+            else
+            {
+                ShowWindow(handle, SW_HIDE);
+            }
+        }
+
+        private static void RunOpos(INI ini, ManualResetEvent exitEvent)
+        {
+            Logger.Log($"Runtime mode: {ini.Mode}", MessageType.normal);
+
+            // Initialize Scanner
+            if (InitializeScanner(ini))
+            {
+                Logger.Log("Scanner initialized successfully", MessageType.normal);
+            }
+            else
+            {
+                Logger.Log("Scanner initialization failed", MessageType.scanner_error);
+            }
+
+            // Initialize Scale
+            if (ini.ScaleEnabled == 1 && InitializeScale(ini))
+            {
+                Logger.Log("Scale initialized successfully", MessageType.normal);
+            }
+            else
+            {
+                Logger.Log("Scale initialization failed", MessageType.scale_error);
+            }
+
+            if (scanner?.Claimed == true || scale?.Claimed == true)
+            {
+                NamedPipesServer.StartNamedPipeServer(ini.PipeName);
+                if (ini.ScaleEnabled == 1)
+                {
+                    Logger.Log(
+                        "\nDevice(s) ready. Scanner: scan barcodes | Scale: live weight monitoring",
+                        MessageType.normal
+                    );
+                    Logger.Log($"Named pipe server: {ini.PipeName}", MessageType.normal);
+                    Logger.Log("Press Ctrl+C to exit", MessageType.normal);
+                }
+                else
+                {
+                    Logger.Log("\nDevice(s) ready. Scanner: scan barcodes", MessageType.normal);
+                    Logger.Log($"Named pipe server: {ini.PipeName}", MessageType.normal);
+                    Logger.Log("Press Ctrl+C to exit", MessageType.normal);
+                }
+
+                exitEvent.WaitOne();
+            }
+        }
+
+        private static void RunEmulator(INI ini, ManualResetEvent exitEvent)
+        {
+            Logger.Log($"Runtime mode: {ini.Mode}", MessageType.normal);
+            Logger.Log("Emulator mode is not implemented yet.", MessageType.misc);
+            Logger.Log("Press Ctrl+C to exit", MessageType.normal);
+
+            exitEvent.WaitOne();
         }
 
         static bool InitializeScanner(INI ini)
